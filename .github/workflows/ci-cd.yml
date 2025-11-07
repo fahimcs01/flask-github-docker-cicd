@@ -1,4 +1,4 @@
-name: CI/CD with Docker
+name: CI/CD with Docker + Lambda Notification
 
 on:
   push:
@@ -12,10 +12,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
 
       - name: Login to DockerHub
         uses: docker/login-action@v3
@@ -32,3 +32,37 @@ jobs:
 
       - name: Verify built image
         run: docker images
+
+      # --- Lambda notification step ---
+      - name: Install AWS CLI
+        run: |
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip -q awscliv2.zip
+          sudo ./aws/install
+
+      - name: Notify via AWS Lambda
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          LAMBDA_NAME: ${{ secrets.LAMBDA_NAME }}
+        run: |
+          echo "Preparing payload for Lambda notification..."
+          payload=$(jq -n \
+            --arg repo "$GITHUB_REPOSITORY" \
+            --arg branch "$GITHUB_REF_NAME" \
+            --arg actor "$GITHUB_ACTOR" \
+            --arg run_id "$GITHUB_RUN_ID" \
+            --arg image_tag "${{ secrets.DOCKERHUB_USERNAME }}/flask-cicd:latest" \
+            '{subject:"CI/CD Pipeline Success", repository:$repo, branch:$branch, actor:$actor, image:$image_tag, run_id:$run_id}')
+
+          echo "Invoking Lambda..."
+          aws lambda invoke \
+            --function-name "${LAMBDA_NAME:-ciCdNotifier}" \
+            --region "${AWS_REGION:-us-east-1}" \
+            --payload "$payload" \
+            --cli-binary-format raw-in-base64-out \
+            response.json
+
+          echo "Lambda Response:"
+          cat response.json
