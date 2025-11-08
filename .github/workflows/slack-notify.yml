@@ -49,4 +49,4 @@ jobs:
           # Post payload file to Slack
           curl -s -X POST -H "Content-Type: application/json" --data @payload.json "$SLACK_WEBHOOK_URL" -o curl_out.txt -w "%{http_code}"
           cat curl_out.txt
-        shell: bash
+        shell: bash 
