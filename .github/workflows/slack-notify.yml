@@ -7,21 +7,35 @@ on:
       - master
 
 jobs:
-  notify:
+  slack-notify:
     runs-on: ubuntu-latest
+
     steps:
       - name: Send Slack Notification
         uses: slackapi/slack-github-action@v1.26.0
         with:
           payload: |
             {
-              "text": ":rocket: New push by *${{ github.actor }}* to *${{ github.repository }}*",
+              "text": ":rocket: New push detected in *${{ github.repository }}*",
               "attachments": [
                 {
                   "color": "#36a64f",
                   "fields": [
-                    { "title": "Branch", "value": "${{ github.ref_name }}", "short": true },
-                    { "title": "Commit Message", "value": "${{ github.event.head_commit.message }}", "short": false }
+                    {
+                      "title": "Pushed by",
+                      "value": "${{ github.actor }}",
+                      "short": true
+                    },
+                    {
+                      "title": "Branch",
+                      "value": "${{ github.ref_name }}",
+                      "short": true
+                    },
+                    {
+                      "title": "Commit Message",
+                      "value": "${{ github.event.head_commit.message }}",
+                      "short": false
+                    }
                   ]
                 }
               ]
