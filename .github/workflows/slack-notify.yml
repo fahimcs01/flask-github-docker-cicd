@@ -7,39 +7,46 @@ on:
       - master
 
 jobs:
-  slack-notify:
+  notify:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Send Slack Notification
-        uses: slackapi/slack-github-action@v1.26.0
-        with:
-          payload: |
-            {
-              "text": ":rocket: New push detected in *${{ github.repository }}*",
-              "attachments": [
-                {
-                  "color": "#36a64f",
-                  "fields": [
-                    {
-                      "title": "Pushed by",
-                      "value": "${{ github.actor }}",
-                      "short": true
-                    },
-                    {
-                      "title": "Branch",
-                      "value": "${{ github.ref_name }}",
-                      "short": true
-                    },
-                    {
-                      "title": "Commit Message",
-                      "value": "${{ github.event.head_commit.message }}",
-                      "short": false
-                    }
-                  ]
-                }
-              ]
-            }
+      - name: Checkout (for context only)
+        uses: actions/checkout@v4
+
+      - name: Create JSON payload file
+        env:
+          REPO: ${{ github.repository }}
+          ACTOR: ${{ github.actor }}
+          BRANCH: ${{ github.ref_name }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          cat <<'EOF' > payload.json
+          {
+            "text": ":rocket: New push detected in *${REPO}*",
+            "attachments": [
+              {
+                "color": "#36a64f",
+                "fields": [
+                  { "title": "Pushed by", "value": "${ACTOR}", "short": true },
+                  { "title": "Branch", "value": "${BRANCH}", "short": true },
+                  { "title": "Commit Message", "value": "${COMMIT_MSG}", "short": false }
+                ]
+              }
+            ]
+          }
+          EOF
+          echo "Payload written to payload.json"
+        shell: bash
+
+      - name: Send to Slack webhook
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          
+        run: |
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "SLACK_WEBHOOK_URL secret is missing"; exit 1
+          fi
+
+          # Post payload file to Slack
+          curl -s -X POST -H "Content-Type: application/json" --data @payload.json "$SLACK_WEBHOOK_URL" -o curl_out.txt -w "%{http_code}"
+          cat curl_out.txt
+        shell: bash
